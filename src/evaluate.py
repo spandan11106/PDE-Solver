@@ -12,8 +12,8 @@ model.load_state_dict(torch.load('pinn_kovasznay.pth', map_location=device))
 model.eval()
 
 # 2. Create a dense grid for plotting
-x = np.linspace(-0.5, 1.0, 100)
-y = np.linspace(-0.5, 0.5, 100)
+x = np.linspace(-0.5, 1.0, 101)
+y = np.linspace(-0.5, 0.5, 101)
 X, Y = np.meshgrid(x, y)
 
 # Flatten and convert to tensor for the network
@@ -24,9 +24,9 @@ grid_tensor = torch.tensor(grid_points, dtype=torch.float32).to(device)
 with torch.no_grad():
     preds = model(grid_tensor)
     # Reshape back to grid format
-    u_pred = preds[:, 0].cpu().numpy().reshape(100, 100)
-    v_pred = preds[:, 1].cpu().numpy().reshape(100, 100)
-    p_pred = preds[:, 2].cpu().numpy().reshape(100, 100)
+    u_pred = preds[:, 0].cpu().numpy().reshape(101, 101)
+    v_pred = preds[:, 1].cpu().numpy().reshape(101, 101)
+    p_pred = preds[:, 2].cpu().numpy().reshape(101, 101)
 
 # 4. Get Exact "Ground Truth"
 # We pass the flattened x and y tensors to your kovasznay_solution
@@ -34,9 +34,26 @@ x_ex = torch.tensor(grid_points[:, 0:1], dtype=torch.float32)
 y_ex = torch.tensor(grid_points[:, 1:2], dtype=torch.float32)
 u_ex_t, v_ex_t, p_ex_t = kovasznay_solution(x_ex, y_ex)
 
-u_exact = u_ex_t.numpy().reshape(100, 100)
-v_exact = v_ex_t.numpy().reshape(100, 100)
-p_exact = p_ex_t.numpy().reshape(100, 100)
+u_exact = u_ex_t.numpy().reshape(101, 101)
+v_exact = v_ex_t.numpy().reshape(101, 101)
+p_exact = p_ex_t.numpy().reshape(101, 101)
+
+# 4.5 Calculate L2 Relative Error
+def l2_relative_error(pred, exact):
+    return np.linalg.norm(exact.flatten() - pred.flatten()) / np.linalg.norm(exact.flatten())
+
+error_u = l2_relative_error(u_pred, u_exact)
+error_v = l2_relative_error(v_pred, v_exact)
+error_p = l2_relative_error(p_pred, p_exact)
+
+Re = 20
+print("-" * 30)
+print(f"EVALUATION RESULTS (Re={Re})")
+print("-" * 30)
+print(f"L2 Relative Error (u): {error_u:.2e} ({error_u*100:.4f}%)")
+print(f"L2 Relative Error (v): {error_v:.2e} ({error_v*100:.4f}%)")
+print(f"L2 Relative Error (p): {error_p:.2e} ({error_p*100:.4f}%)")
+print("-" * 30)
 
 # 5. Plotting
 fig, axes = plt.subplots(3, 3, figsize=(15, 12))
