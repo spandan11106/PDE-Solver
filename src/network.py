@@ -13,6 +13,8 @@ class PINN(nn.Module):
         self.output_layer = nn.Linear(50, 3)
 
         self.activation = nn.Tanh()
+        self.w_bnd = torch.nn.Parameter(torch.zeros(1))
+        self.w_phys = torch.nn.Parameter(torch.zeros(1))
     
     def forward(self, x):
         # x is input tensor of shape (N, 2)
