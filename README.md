@@ -40,7 +40,7 @@ PDE-Solver/
 │   ├── kovasznay_results_lbfgs.png
 │   ├── physics_residuals.png
 │   └── velocity_profile_x_0_5049999999999999.png
-└── src/
+└── kovasznay_flow/
     ├── dataset.py
     ├── evaluate.py
     ├── kovasznay.py
@@ -74,7 +74,7 @@ Run all commands from the project root.
 ### 1. Train the PINN
 
 ```bash
-python src/train.py
+python kovasznay_flow/train.py
 ```
 
 What happens during training:
@@ -86,7 +86,7 @@ What happens during training:
 ### 2. Evaluate Against Analytical Solution
 
 ```bash
-python src/evaluate.py
+python kovasznay_flow/evaluate.py
 ```
 
 This script:
@@ -98,7 +98,7 @@ This script:
 ### 3. Generate Additional Diagnostics
 
 ```bash
-python src/visualize.py
+python kovasznay_flow/visualize.py
 ```
 
 This script generates diagnostics in `results/`:
@@ -111,7 +111,7 @@ This script generates diagnostics in `results/`:
 
 ### PINN Architecture
 
-Defined in `src/network.py`:
+Defined in `kovasznay_flow/network.py`:
 - Input layer: 2 -> 50
 - Hidden layers: 4 additional fully-connected layers of size 50
 - Activation: `tanh`
@@ -119,26 +119,26 @@ Defined in `src/network.py`:
 
 ### Data Sampling
 
-Defined in `src/dataset.py`:
+Defined in `kovasznay_flow/dataset.py`:
 - Interior collocation points: 5000 random samples
 - Boundary points: 800 random samples total (200 per side)
 - Boundary targets come from analytical Kovasznay solution
 
 ### Loss Function
 
-Defined in `src/loss.py`:
+Defined in `kovasznay_flow/loss.py`:
 - `mse_bnd`: boundary-condition MSE for `u, v, p`
 - `mse_physics`: PDE residual MSE for continuity and momentum equations
-- Total training objective in `src/train.py` uses adaptive weighting:
+- Total training objective in `kovasznay_flow/train.py` uses adaptive weighting:
   - `0.5 * exp(-w_bnd) * mse_bnd + 0.5 * w_bnd`
   - `0.5 * exp(-w_phys) * mse_phys + 0.5 * w_phys`
 
 ## Typical Workflow
 
 ```bash
-python src/train.py
-python src/evaluate.py
-python src/visualize.py
+python kovasznay_flow/train.py
+python kovasznay_flow/evaluate.py
+python kovasznay_flow/visualize.py
 ```
 
 Then inspect:
@@ -148,7 +148,7 @@ Then inspect:
 ## Troubleshooting
 
 - If CUDA is unavailable, training/evaluation automatically falls back to CPU.
-- If `src/evaluate.py` cannot find weights, ensure `pinn_kovasznay.pth` exists in the project root.
+- If `kovasznay_flow/evaluate.py` cannot find weights, ensure `pinn_kovasznay.pth` exists in the project root.
 - If you retrain, old result plots may be overwritten.
 
 ## License
