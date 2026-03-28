@@ -27,7 +27,7 @@ model.eval()
 print(f"Loaded weights from {model_path}")
 
 # 3. Create a dense grid for plotting at a specific time snapshot
-t_val = 5.0  # Evaluating at the final time T_max = 5.0
+t_val = 0.5  
 x = np.linspace(-1.0, 5.0, 200)
 y = np.linspace(-2.0, 2.0, 150)
 X, Y = np.meshgrid(x, y)

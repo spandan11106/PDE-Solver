@@ -13,14 +13,15 @@ REYNOLDS_NUMBER = 100
 RAR_ITERS = 5                
 EPOCHS_PER_RAR = 3000         
 CANDIDATE_POOL_SIZE = 10000  
-POINTS_PER_RAR = 50 
+POINTS_PER_RAR = 50
+T_MAX = 0.5 
 
 device = torch.device('cpu')
 
 model = PINN().to(device)
 model.load_state_dict(torch.load(PRETRAINED_WEIGHTS, map_location=device))
 
-X_colloc, X_bnd, u_bnd, v_bnd = generate_points(n_colloc=5000, n_bnd=500)
+X_colloc, X_bnd, u_bnd, v_bnd = generate_points(n_colloc=5000, n_bnd=500, T_max=T_MAX)
 X_colloc, X_bnd = X_colloc.to(device), X_bnd.to(device)
 u_bnd, v_bnd = u_bnd.to(device), v_bnd.to(device)
 
@@ -31,7 +32,7 @@ for rar_idx in range(RAR_ITERS):
     model.eval()
     
     # 3D Spatiotemporal Candidate Generation
-    t_c = 5.0 * torch.rand(CANDIDATE_POOL_SIZE, 1) # T_max = 5.0
+    t_c = T_MAX * torch.rand(CANDIDATE_POOL_SIZE, 1) # T_max = 5.0
     x_c = -1.0 + 6.0 * torch.rand(CANDIDATE_POOL_SIZE, 1) # x in [-1, 5]
     y_c = -2.0 + 4.0 * torch.rand(CANDIDATE_POOL_SIZE, 1) # y in [-2, 2]
     

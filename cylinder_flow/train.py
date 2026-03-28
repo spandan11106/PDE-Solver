@@ -16,7 +16,8 @@ wandb.init(
         "epochs_lbfgs": 50000,  
         "reynolds_number": 100,
         "n_colloc": 5000,
-        "n_bnd": 500
+        "n_bnd": 1500,
+        "t_max": 0.5
     }
 )
 
@@ -27,7 +28,8 @@ model = PINN().to(device)
 
 X_colloc, X_bnd, u_bnd, v_bnd = generate_points(
     n_colloc=wandb.config.n_colloc, 
-    n_bnd=wandb.config.n_bnd
+    n_bnd=wandb.config.n_bnd,
+    T_max=wandb.config.t_max  
 )
 
 X_colloc = X_colloc.to(device)
