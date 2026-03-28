@@ -9,27 +9,28 @@ from loss import compute_loss
 
 wandb.init(
     project="pinn-cylinder",
-    name="Unsteady-Cylinder-CPU",
+    name="Unsteady-Cylinder-CPU-Window1",
     config={
         "learning_rate": 1e-3,
-        "epochs_adam": 10000,   
-        "epochs_lbfgs": 50000,  
+        "epochs_adam": 2000,   
+        "epochs_lbfgs": 1000,  
         "reynolds_number": 100,
         "n_colloc": 5000,
-        "n_bnd": 1500,
-        "t_max": 0.5
+        "n_bnd": 1500,         
+        "t_max": 0.5           
     }
 )
 
-device = torch.device('cpu') # Forcing CPU per your instructions
+device = torch.device('cpu') 
 print(f"Training on device: {device}")
 
 model = PINN().to(device)
+model.init_weights()
 
 X_colloc, X_bnd, u_bnd, v_bnd = generate_points(
     n_colloc=wandb.config.n_colloc, 
     n_bnd=wandb.config.n_bnd,
-    T_max=wandb.config.t_max  
+    T_max=wandb.config.t_max
 )
 
 X_colloc = X_colloc.to(device)
@@ -51,6 +52,7 @@ for epoch in pbar_adam:
            0.5 * torch.exp(-model.w_phys) * mse_phys + 0.5 * model.w_phys
            
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     optimizer_adam.step()
     scheduler.step(loss.item())
     

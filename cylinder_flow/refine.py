@@ -11,7 +11,7 @@ from loss import compute_loss, compute_pointwise_physics_residual
 PRETRAINED_WEIGHTS = 'pinn_cylinder.pth'
 REYNOLDS_NUMBER = 100
 RAR_ITERS = 5                
-EPOCHS_PER_RAR = 3000         
+EPOCHS_PER_RAR = 1000         
 CANDIDATE_POOL_SIZE = 10000  
 POINTS_PER_RAR = 50
 T_MAX = 0.5 
