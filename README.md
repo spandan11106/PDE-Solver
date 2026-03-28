@@ -1,155 +1,124 @@
-# PDE-Solver: PINN for Kovasznay Flow
+# PINN Navier-Stokes Solver (Kovasznay + Cylinder Flow)
 
-A Physics-Informed Neural Network (PINN) implementation for solving the steady 2D incompressible Navier-Stokes equations on the Kovasznay benchmark flow.
+This repository contains Physics-Informed Neural Networks (PINNs) for two incompressible Navier-Stokes benchmarks:
 
-The model predicts:
-- `u(x, y)`: x-velocity
-- `v(x, y)`: y-velocity
-- `p(x, y)`: pressure
+- Steady 2D Kovasznay flow
+- Unsteady 2D cylinder wake flow
 
-and is trained with a combination of:
-- boundary-condition supervision from the analytical Kovasznay solution
-- PDE residual minimization at interior collocation points
+The models learn velocity and pressure fields by minimizing boundary supervision loss and PDE residual loss.
 
-## Problem Setup
+## Training Results
 
-This project solves the steady incompressible Navier-Stokes system:
+### Kovasznay Flow (Re = 20)
 
-- Continuity: `u_x + v_y = 0`
-- X-momentum: `u*u_x + v*u_y + p_x - (1/Re)*(u_xx + u_yy) = 0`
-- Y-momentum: `u*v_x + v*v_y + p_y - (1/Re)*(v_xx + v_yy) = 0`
+Best run metrics captured from logged training summaries:
 
-with Reynolds number:
-- `Re = 20`
+- Boundary MSE: `1.20e-09`
+- Physics MSE: `2.24e-07`
+- Final weighted objective: `-15.63`
+- RAR + L-BFGS run: Boundary MSE `1.14e-09`, Physics MSE `2.81e-07`
 
-Domain:
-- `x in [-0.5, 1.0]`
-- `y in [-0.5, 0.5]`
+Interpretation:
 
-## Repository Structure
+- The PINN converges to very low boundary and physics residual errors.
+- Adaptive weighting and second-stage optimization (L-BFGS) are critical to reach the final regime.
+- Residual-based adaptive refinement (RAR) stabilizes physics loss as collocation density increases in hard regions.
+
+### Cylinder Flow (Re = 100)
+
+Representative logged run metrics:
+
+- Boundary MSE: `3.67e-06`
+- Physics MSE: `1.45e-05`
+- Final weighted objective: `-9.53`
+
+Interpretation:
+
+- The unsteady wake problem is more challenging than Kovasznay; residuals remain higher, which is expected.
+- The pipeline supports additional RAR passes to improve wake-region fidelity.
+
+## Result Figures
+
+### Kovasznay Field Predictions
+
+![Kovasznay Latest Result](kovasznay_flow/results/rar_refine.png)
+
+### Cylinder Flow Progression
+
+![Cylinder Second-Latest Result](cylinder_flow/results/train2_refine.png)
+
+## Governing Equations
+
+For velocity $(u, v)$ and pressure $p$, the incompressible Navier-Stokes equations are:
+
+$$
+\nabla \cdot \mathbf{u} = 0
+$$
+
+$$
+\mathbf{u} \cdot \nabla \mathbf{u} + \nabla p - \frac{1}{Re} \nabla^2 \mathbf{u} = 0
+$$
+
+Cylinder flow extends this with the transient term $\partial \mathbf{u}/\partial t$.
+
+## Project Structure
 
 ```
 PDE-Solver/
-├── LICENSE
 ├── README.md
 ├── requirements.txt
 ├── pinn_kovasznay.pth
-├── results/
-│   ├── error_distribution.png
-│   ├── kovasznay_results.png
-│   ├── kovasznay_results_lbfgs.png
-│   ├── physics_residuals.png
-│   └── velocity_profile_x_0_5049999999999999.png
-└── kovasznay_flow/
+├── pinn_cylinder.pth
+├── kovasznay_flow/
+│   ├── dataset.py
+│   ├── evaluate.py
+│   ├── kovasznay.py
+│   ├── loss.py
+│   ├── network.py
+│   ├── refine.py
+│   ├── train.py
+│   └── results/
+└── cylinder_flow/
     ├── dataset.py
     ├── evaluate.py
-    ├── kovasznay.py
     ├── loss.py
     ├── network.py
+    ├── refine.py
     ├── train.py
-    └── visualize.py
+    └── results/
 ```
 
 ## Installation
 
-1. Clone the repository and move into it.
-2. Create and activate a virtual environment.
-3. Install dependencies.
-
 ```bash
-python -m venv .venv
-source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Dependencies:
-- `torch`
-- `numpy`
-- `matplotlib`
+## Usage
 
-## Quick Start
+Run all commands from the repository root.
 
-Run all commands from the project root.
-
-### 1. Train the PINN
+### Kovasznay
 
 ```bash
 python kovasznay_flow/train.py
-```
-
-What happens during training:
-- Stage 1: Adam optimizer with `ReduceLROnPlateau`
-- Stage 2: L-BFGS fine-tuning
-- Adaptive loss balancing via trainable weights `w_bnd` and `w_phys`
-- Model is saved as `pinn_kovasznay.pth`
-
-### 2. Evaluate Against Analytical Solution
-
-```bash
+python kovasznay_flow/refine.py
 python kovasznay_flow/evaluate.py
 ```
 
-This script:
-- loads `pinn_kovasznay.pth`
-- computes predictions on a dense `101 x 101` grid
-- computes L2 relative errors for `u`, `v`, and `p`
-- saves comparison plots to `kovasznay_results.png`
-
-### 3. Generate Additional Diagnostics
+### Cylinder
 
 ```bash
-python kovasznay_flow/visualize.py
+python cylinder_flow/train.py
+python cylinder_flow/refine.py
+python cylinder_flow/evaluate.py
 ```
 
-This script generates diagnostics in `results/`:
-- `physics_residuals.png` (continuity residual map)
-- `error_distribution.png` (log-scale error histogram)
-- `velocity_profile_x_*.png` (slice comparison)
-- printed net mass flux check
+## Notes
 
-## Implementation Notes
-
-### PINN Architecture
-
-Defined in `kovasznay_flow/network.py`:
-- Input layer: 2 -> 50
-- Hidden layers: 4 additional fully-connected layers of size 50
-- Activation: `tanh`
-- Output layer: 50 -> 3 (`u, v, p`)
-
-### Data Sampling
-
-Defined in `kovasznay_flow/dataset.py`:
-- Interior collocation points: 5000 random samples
-- Boundary points: 800 random samples total (200 per side)
-- Boundary targets come from analytical Kovasznay solution
-
-### Loss Function
-
-Defined in `kovasznay_flow/loss.py`:
-- `mse_bnd`: boundary-condition MSE for `u, v, p`
-- `mse_physics`: PDE residual MSE for continuity and momentum equations
-- Total training objective in `kovasznay_flow/train.py` uses adaptive weighting:
-  - `0.5 * exp(-w_bnd) * mse_bnd + 0.5 * w_bnd`
-  - `0.5 * exp(-w_phys) * mse_phys + 0.5 * w_phys`
-
-## Typical Workflow
-
-```bash
-python kovasznay_flow/train.py
-python kovasznay_flow/evaluate.py
-python kovasznay_flow/visualize.py
-```
-
-Then inspect:
-- `kovasznay_results.png`
-- files inside `results/`
-
-## Troubleshooting
-
-- If CUDA is unavailable, training/evaluation automatically falls back to CPU.
-- If `kovasznay_flow/evaluate.py` cannot find weights, ensure `pinn_kovasznay.pth` exists in the project root.
-- If you retrain, old result plots may be overwritten.
+- Scripts automatically use GPU if CUDA is available; otherwise they run on CPU.
+- Existing plots in `*/results/` reflect prior training runs and can be overwritten by new experiments.
+- Weights & Biases logging is enabled in training/refinement scripts.
 
 ## License
 

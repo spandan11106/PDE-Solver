@@ -1,48 +1,47 @@
-import torch
+"""Sampling utilities for steady Kovasznay-flow PINN training."""
+
+from __future__ import annotations
+
 import numpy as np
-from scipy.stats import qmc 
+import torch
+from scipy.stats import qmc
+
 from kovasznay import kovasznay_solution
 
-def generate_points(n_colloc = 5000, n_bnd = 200):
+
+def generate_points(
+    n_colloc: int = 5000,
+    n_bnd: int = 200,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Generate collocation and boundary points for the Kovasznay domain."""
     x_min, x_max = -0.5, 1.0
-    y_min, y_max = -0.5, 0.5  
+    y_min, y_max = -0.5, 0.5
 
-    sampler = qmc.LatinHypercube(d=2)
-
-    lhs_samples = sampler.random(n=n_colloc)
-
+    sampler_2d = qmc.LatinHypercube(d=2)
+    lhs_samples = sampler_2d.random(n=n_colloc)
     x_c = x_min + (x_max - x_min) * lhs_samples[:, 0:1]
     y_c = y_min + (y_max - y_min) * lhs_samples[:, 1:2]
-
-    X_colloc = torch.tensor(np.hstack([x_c, y_c]), dtype = torch.float32)
+    x_colloc = torch.tensor(np.hstack([x_c, y_c]), dtype=torch.float32)
 
     sampler_1d = qmc.LatinHypercube(d=1)
-    
-    # Left Boundary (x = x_min)
-    y_left_samples = sampler_1d.random(n=n_bnd)
-    y_left = y_min + (y_max - y_min) * y_left_samples
+
+    y_left = y_min + (y_max - y_min) * sampler_1d.random(n=n_bnd)
     x_left = np.full((n_bnd, 1), x_min)
-    X_left = torch.tensor(np.hstack([x_left, y_left]), dtype=torch.float32)
-    
-    # Right Boundary (x = x_max)
-    y_right_samples = sampler_1d.random(n=n_bnd)
-    y_right = y_min + (y_max - y_min) * y_right_samples
+    x_left_bnd = torch.tensor(np.hstack([x_left, y_left]), dtype=torch.float32)
+
+    y_right = y_min + (y_max - y_min) * sampler_1d.random(n=n_bnd)
     x_right = np.full((n_bnd, 1), x_max)
-    X_right = torch.tensor(np.hstack([x_right, y_right]), dtype=torch.float32)
+    x_right_bnd = torch.tensor(np.hstack([x_right, y_right]), dtype=torch.float32)
 
-    # Top Boundary (y = y_max)
-    x_top_samples = sampler_1d.random(n=n_bnd)
-    x_top = x_min + (x_max - x_min) * x_top_samples
+    x_top = x_min + (x_max - x_min) * sampler_1d.random(n=n_bnd)
     y_top = np.full((n_bnd, 1), y_max)
-    X_top = torch.tensor(np.hstack([x_top, y_top]), dtype=torch.float32)
+    x_top_bnd = torch.tensor(np.hstack([x_top, y_top]), dtype=torch.float32)
 
-    # Bottom Boundary (y = y_min)
-    x_bottom_samples = sampler_1d.random(n=n_bnd)
-    x_bottom = x_min + (x_max - x_min) * x_bottom_samples
+    x_bottom = x_min + (x_max - x_min) * sampler_1d.random(n=n_bnd)
     y_bottom = np.full((n_bnd, 1), y_min)
-    X_bottom = torch.tensor(np.hstack([x_bottom, y_bottom]), dtype=torch.float32)
+    x_bottom_bnd = torch.tensor(np.hstack([x_bottom, y_bottom]), dtype=torch.float32)
 
-    X_bnd = torch.cat([X_left, X_right, X_top, X_bottom], dim=0)
-    u_bnd, v_bnd, p_bnd = kovasznay_solution(X_bnd[:, 0:1], X_bnd[:, 1:2])
+    x_bnd = torch.cat([x_left_bnd, x_right_bnd, x_top_bnd, x_bottom_bnd], dim=0)
+    u_bnd, v_bnd, p_bnd = kovasznay_solution(x_bnd[:, 0:1], x_bnd[:, 1:2])
 
-    return X_colloc, X_bnd, u_bnd, v_bnd, p_bnd
+    return x_colloc, x_bnd, u_bnd, v_bnd, p_bnd

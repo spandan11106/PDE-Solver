@@ -1,73 +1,69 @@
-import torch 
+"""Loss and residual definitions for the Kovasznay PINN."""
 
-def compute_loss(model, X_colloc, X_bnd, u_bnd, v_bnd, p_bnd, Re=20):
+from __future__ import annotations
 
-    # --- 1. Boundary Data Loss ---
-    preds_bnd = model(X_bnd)
-    u_p, v_p, p_p  = preds_bnd[:, 0:1], preds_bnd[:, 1:2], preds_bnd[:, 2:3]
+import torch
 
-    mse_bnd = torch.mean((u_p - u_bnd)**2) + \
-              torch.mean((v_p - v_bnd)**2) + \
-              torch.mean((p_p - p_bnd)**2)
-    
-    # --- 2. Physics Loss ---
-    X_colloc.requires_grad_(True)
-    preds = model(X_colloc)
+
+def _grad(outputs: torch.Tensor, inputs: torch.Tensor) -> torch.Tensor:
+    return torch.autograd.grad(
+        outputs,
+        inputs,
+        grad_outputs=torch.ones_like(outputs),
+        create_graph=True,
+    )[0]
+
+
+def _residual_terms(model, x: torch.Tensor, re: float) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    x.requires_grad_(True)
+    preds = model(x)
     u, v, p = preds[:, 0:1], preds[:, 1:2], preds[:, 2:3]
 
-    def grad(outputs, inputs):
-        return torch.autograd.grad(outputs, inputs, grad_outputs=torch.ones_like(outputs), create_graph=True)[0]
-
-    # First derivatives
-    grads_u = grad(u, X_colloc)
+    grads_u = _grad(u, x)
     u_x, u_y = grads_u[:, 0:1], grads_u[:, 1:2]
 
-    grads_v = grad(v, X_colloc)
+    grads_v = _grad(v, x)
     v_x, v_y = grads_v[:, 0:1], grads_v[:, 1:2]
-    
-    grads_p = grad(p, X_colloc)
+
+    grads_p = _grad(p, x)
     p_x, p_y = grads_p[:, 0:1], grads_p[:, 1:2]
 
-    # Second derivatives
-    u_xx = grad(u_x, X_colloc)[:, 0:1]
-    u_yy = grad(u_y, X_colloc)[:, 1:2]
-    v_xx = grad(v_x, X_colloc)[:, 0:1]
-    v_yy = grad(v_y, X_colloc)[:, 1:2]
+    u_xx = _grad(u_x, x)[:, 0:1]
+    u_yy = _grad(u_y, x)[:, 1:2]
+    v_xx = _grad(v_x, x)[:, 0:1]
+    v_yy = _grad(v_y, x)[:, 1:2]
 
-    # Navier-Stokes Residuals
     f_cont = u_x + v_y
-    f_u = u * u_x + v * u_y + p_x - (1.0 / Re) * (u_xx + u_yy)
-    f_v = u * v_x + v * v_y + p_y - (1.0 / Re) * (v_xx + v_yy)
+    f_u = u * u_x + v * u_y + p_x - (1.0 / re) * (u_xx + u_yy)
+    f_v = u * v_x + v * v_y + p_y - (1.0 / re) * (v_xx + v_yy)
+    return f_cont, f_u, f_v
 
+
+def compute_loss(
+    model,
+    X_colloc: torch.Tensor,
+    X_bnd: torch.Tensor,
+    u_bnd: torch.Tensor,
+    v_bnd: torch.Tensor,
+    p_bnd: torch.Tensor,
+    Re: float = 20,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute boundary and physics MSE loss terms."""
+    preds_bnd = model(X_bnd)
+    u_pred, v_pred, p_pred = preds_bnd[:, 0:1], preds_bnd[:, 1:2], preds_bnd[:, 2:3]
+
+    mse_bnd = (
+        torch.mean((u_pred - u_bnd) ** 2)
+        + torch.mean((v_pred - v_bnd) ** 2)
+        + torch.mean((p_pred - p_bnd) ** 2)
+    )
+
+    f_cont, f_u, f_v = _residual_terms(model, X_colloc, Re)
     mse_physics = torch.mean(f_cont**2) + torch.mean(f_u**2) + torch.mean(f_v**2)
-
     return mse_bnd, mse_physics
 
-def compute_pointwise_physics_residual(model, X_candidate, Re=20):
-    X_candidate.requires_grad_(True)
-    preds = model(X_candidate)
-    u, v, p = preds[:, 0:1], preds[:, 1:2], preds[:, 2:3]
 
-    def grad(outputs, inputs):
-        return torch.autograd.grad(outputs, inputs, grad_outputs=torch.ones_like(outputs), create_graph=True)[0]
-
-    grads_u = grad(u, X_candidate)
-    u_x, u_y = grads_u[:, 0:1], grads_u[:, 1:2]
-
-    grads_v = grad(v, X_candidate)
-    v_x, v_y = grads_v[:, 0:1], grads_v[:, 1:2]
-    
-    grads_p = grad(p, X_candidate)
-    p_x, p_y = grads_p[:, 0:1], grads_p[:, 1:2]
-
-    u_xx = grad(u_x, X_candidate)[:, 0:1]
-    u_yy = grad(u_y, X_candidate)[:, 1:2]
-    v_xx = grad(v_x, X_candidate)[:, 0:1]
-    v_yy = grad(v_y, X_candidate)[:, 1:2]
-
-    f_cont = u_x + v_y
-    f_u = u * u_x + v * u_y + p_x - (1.0 / Re) * (u_xx + u_yy)
-    f_v = u * v_x + v * v_y + p_y - (1.0 / Re) * (v_xx + v_yy)
-
-    pointwise_residual = f_cont**2 + f_u**2 + f_v**2
-    return pointwise_residual.squeeze()
+def compute_pointwise_physics_residual(model, X_candidate: torch.Tensor, Re: float = 20) -> torch.Tensor:
+    """Compute scalar residual magnitude used for adaptive re-sampling."""
+    f_cont, f_u, f_v = _residual_terms(model, X_candidate, Re)
+    return (f_cont**2 + f_u**2 + f_v**2).squeeze()
